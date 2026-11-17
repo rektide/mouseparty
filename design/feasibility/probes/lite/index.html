@@ -1,0 +1,33 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Rust → Datasette Lite worker</title>
+<pre id="result">Starting…</pre>
+<script type="module">
+const result = document.querySelector('#result');
+const worker = new Worker('webworker.js', {type: 'module'});
+worker.onerror = e => { result.textContent = `FAIL: ${e.message}`; };
+try {
+    const {instance} = await WebAssembly.instantiateStreaming(fetch('client.wasm'), {lite: {
+        get(ptr, len) {
+            const path = new TextDecoder().decode(new Uint8Array(instance.exports.memory.buffer, ptr, len));
+            worker.postMessage({type: 'request', id: 'query', method: 'GET', url: new URL(path, location.href).href});
+        }
+    }});
+    worker.onmessage = ({data: m}) => {
+        if (m.type === 'error') result.textContent = `FAIL: ${m.error}`;
+        if (m.type === 'ready') instance.exports.run();
+        if (m.type === 'response' && m.id === 'query') {
+            const bytes = new Uint8Array(m.body);
+            const text = new TextDecoder().decode(bytes);
+            let ok = false;
+            if (bytes.length <= 4096) {
+                new Uint8Array(instance.exports.memory.buffer, instance.exports.buffer(), bytes.length).set(bytes);
+                ok = instance.exports.check(m.status, bytes.length) && JSON.parse(text)?.[0]?.title === 'Cléo from 5 to 7';
+            }
+            result.textContent = `${ok ? 'PASS' : 'FAIL'}: HTTP ${m.status} ${text.slice(0, 250)}`;
+        }
+    };
+    worker.postMessage({type: 'startup', baseUrl: '/party/data/t/', ref: '0.65.5',
+        sqlUrls: [new URL('films.sql', location.href).href]});
+} catch (e) { result.textContent = `FAIL: ${e}`; }
+</script>
