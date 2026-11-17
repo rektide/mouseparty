@@ -3,6 +3,7 @@ import functools
 import http.server
 import pathlib
 import shutil
+import sqlite3
 import subprocess
 import sys
 import tempfile
@@ -15,7 +16,9 @@ with tempfile.TemporaryDirectory() as tmp:
     root = pathlib.Path(tmp)
     shutil.copy(pathlib.Path(sys.argv[1]) / 'webworker.js', root)
     shutil.copy(here / 'index.html', root)
-    (root / 'films.sql').write_text("create table films(title); insert into films values ('Cléo from 5 to 7');", encoding='utf-8')
+    db = sqlite3.connect(root / 'films.db')
+    db.executescript("create table films(title); insert into films values ('Cléo from 5 to 7');")
+    db.close()
     subprocess.run(['rustc', '--edition=2024', '--target=wasm32-unknown-unknown', '--crate-type=cdylib',
                     '-O', '-C', 'strip=symbols', here / 'client.rs', '-o', root / 'client.wasm'], check=True)
     handler = functools.partial(http.server.SimpleHTTPRequestHandler, directory=tmp)

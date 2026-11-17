@@ -22,12 +22,14 @@ try {
             let ok = false;
             if (bytes.length <= 4096) {
                 new Uint8Array(instance.exports.memory.buffer, instance.exports.buffer(), bytes.length).set(bytes);
-                ok = instance.exports.check(m.status, bytes.length) && JSON.parse(text)?.[0]?.title === 'Cléo from 5 to 7';
+                ok = instance.exports.check(m.status, bytes.length);
+                try { ok = ok && JSON.parse(text)?.[0]?.title === 'Cléo from 5 to 7'; }
+                catch { ok = false; }
             }
             result.textContent = `${ok ? 'PASS' : 'FAIL'}: HTTP ${m.status} ${text.slice(0, 250)}`;
         }
     };
     worker.postMessage({type: 'startup', baseUrl: '/party/data/t/', ref: '0.65.5',
-        sqlUrls: [new URL('films.sql', location.href).href]});
+        sqliteUrls: [new URL('films.db', location.href).href]});
 } catch (e) { result.textContent = `FAIL: ${e}`; }
 </script>

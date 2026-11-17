@@ -1,0 +1,54 @@
+---
+type: Experiment
+title: Run the two Datasette paths on Linux
+description: Narrow reproduction recipes for the released WASI runtime, a Rust browser client of Datasette Lite, and selected upstream Go tests.
+resource: /design/feasibility/probes/README.md
+status: draft
+generated: { by: 'model:openai/gpt-6.2-astra', at: 2026-11-17 }
+sources:
+  - { resource: 'opencode://ses_e1479787affey7NRxOch4DM678', title: Linux build and Datasette runtime probes }
+  - { resource: 'https://github.com/ftrain/mouseparty/releases/tag/v3.5.1', title: Tested DMG and published digest }
+  - { resource: 'https://github.com/simonw/datasette-lite/blob/f49662beda68d787ce9c8f24f6eb0b452d90f2c7/webworker.js', title: Tested worker protocol and Pyodide pin }
+---
+
+# Run the two Datasette paths on Linux
+
+Run from the Mouseparty checkout. Both tests create a synthetic film database. They test opposite ends of the deployment decision: running Datasette **at the host** vs. giving a **browser** its own copy of the data.
+
+## 1. Host: unchanged WASI payload, Rust runtime
+
+If `build/python/dist` is populated, just run `python3 design/feasibility/probes/wasi.py build/python/dist`. Otherwise the tested shortcut needs `curl`, `sha256sum`, `7z` (with HFS support), Python 3 and Wasmtime (tested with 44.0.0). From a fresh checkout:
+
+```sh
+mkdir -p build/probes
+curl -fLsS https://github.com/ftrain/mouseparty/releases/download/v3.5.1/MouseParty-macos-arm64.dmg -o build/probes/release.dmg
+echo 'c7e6558255a0e19368c64d316a91b4283dc8a8e225ee8b3a3650bb2f0066bfbb  build/probes/release.dmg' | sha256sum --check && \
+  7z x -obuild/probes/extracted build/probes/release.dmg 'Mouse Party/Mouse Party.app/Contents/Resources/python/*'
+runtime="$PWD/build/probes/extracted/Mouse Party/Mouse Party.app/Contents/Resources/python"
+python3 design/feasibility/probes/wasi.py "$runtime"
+```
+
+Observed: `PASS: SQL 200 [{'title': 'Cléo from 5 to 7'}], download 403`. The ~73 MiB unpacked Python resource includes a WASIp1 binary, standard library and packages; its `VERSION` matched `scripts/build_python.sh --stamp`. No Mac executable is launched. [The probe](wasi.py) passes real requests to the repository's [datasette.py](../../../datasette.py) over stdio using Wasmtime's CLI. This exercises the guest ABI, not a Rust crate embedded in Rune. CLI preopens point at **temporary copies**, not production read-only mounts. A Rust embedder needs explicit filesystem rights, bounded input/output and memory, cancellation, lifecycle management and tests for adjacent-file denial. The source recipe and licenses remain relevant for redistribution; using a DMG is a test shortcut, not a proposed dependency resolver.
+
+## 2. Browser: Rust client → Lite worker → Datasette
+
+Prerequisites: Rust with `wasm32-unknown-unknown` installed, `uv`, a system Chromium on PATH, network access to Pyodide's CDN and Python packages, and a checkout of Lite at `f49662beda68d787ce9c8f24f6eb0b452d90f2c7`.
+
+```sh
+uv run --with playwright design/feasibility/probes/lite/run.py ~/archive/simonw/datasette-lite
+```
+
+Observed: `PASS: HTTP 200 [{"title": "Cl\u00e9o from 5 to 7"}]`. [Rust](lite/client.rs) issues a GET and checks returned bytes; a [small JS adapter](lite/index.html) posts it to the **unmodified module worker**, copies the response back to Rust, and checks the parsed JSON. The worker uses Pyodide 314.0.8 and Datasette 0.65.5 (the Mouseparty pin). The [driver](lite/run.py) starts a loopback fixture server and terminates on a wrong response or timeout. This bypasses Lite's service worker and iframe deliberately: it tests a data API. It does not establish native Rust embedding, a fully offline bundle, compatibility with Rune's JS runtime, or two-party synchronized navigation. The worker downloads third-party dependencies; pin/vendor them before making offline claims.
+
+## 3. Upstream Go tests: distinguish compile failure from runtime failure
+
+```sh
+go test -run '^$' .  # unmodified checkout: undefined native* on Linux
+go test ./apps
+# With the extracted runtime above, if the standard path is unoccupied:
+mkdir -p build/python
+ln -s "$runtime" build/python/dist
+python3 design/feasibility/probes/linux.py --desktop
+```
+
+[linux.py](linux.py) adds seven AppKit no-ops through a temporary `go -overlay` file. `--desktop` also attempts a Wails production link using WebKitGTK 4.1; omit that flag for tests alone. The binary is discarded. The selected `httptest`/WASI tests require no tunnel, media server or public listener. **Check the verbose test results:** database tests can skip without the runtime. These are compile and feature diagnostics, not a runnable Linux distribution or a substitute for a sandbox.

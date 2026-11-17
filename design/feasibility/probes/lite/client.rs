@@ -8,7 +8,7 @@ unsafe extern "C" {
 
 #[unsafe(no_mangle)]
 pub extern "C" fn run() {
-    let path = b"/party/data/t/data.json?sql=select+title+from+films&_shape=array";
+    let path = b"/party/data/t/films.json?sql=select+title+from+films&_shape=array";
     unsafe { get(path.as_ptr(), path.len()) };
 }
 
