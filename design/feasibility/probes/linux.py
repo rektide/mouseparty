@@ -23,6 +23,7 @@ func nativeShowAll() {}
         # Link the real Wails Linux frontend too. Do not launch/distribute it.
         subprocess.run(['go', 'build', '-tags', 'desktop,production,webkit2_41', '-overlay', overlay,
                         '-o', Path(tmp) / 'probe', '.'], check=True, cwd=root)
-    subprocess.run(['go', 'test', '-count=1', '-v', '-overlay', overlay,
-                    '-run', '^(TestOnlyTheKeyGetsIn|TestChatJoinSayLeave|TestOnlyFile|TestDatasette.*)$', '.'],
+    pattern = ('^(TestAppsOverChat|TestSocketGraphIsTypes)$' if '--social' in sys.argv else
+               '^(TestOnlyTheKeyGetsIn|TestChatJoinSayLeave|TestOnlyFile|TestDatasette.*)$')
+    subprocess.run(['go', 'test', '-count=1', '-v', '-overlay', overlay, '-run', pattern, '.'],
                    check=True, cwd=root)
