@@ -58,3 +58,17 @@ Observed on Linux x86-64, Go 1.27.4: the unmodified root package failed on the s
 For a fast compatibility baseline **without the DMG**, run `python3 design/feasibility/probes/linux.py --social`. Both `TestAppsOverChat` (two real WebSocket clients, shared activities, late-join state) and `TestSocketGraphIsTypes` (Go command vocabulary vs. viewer TypeScript) passed here. This is a starting fixture for a future Rune panel or alternate guest; it does not render a guest page.
 
 Linux helper availability is separate from the Wails link. Both [MediaMTX v1.21.3](https://github.com/bluenviron/mediamtx/releases/tag/v1.21.3) and [cloudflared 2026.10.3](https://github.com/cloudflare/cloudflared/releases/tag/2026.10.3) publish Linux amd64 and arm64 binaries at the versions in [`fetch_tools.sh`](../../../scripts/fetch_tools.sh); the script only selects Darwin arm64. This machine's distro ffmpeg 9.0.2 reports the libx264 and libopus encoders, RTSP output muxer, drawtext, subtitles and showcqt filters. Availability is encouraging for a dev build, not a playback or packaging test: e.g. [`stream.go`](../../../stream.go) still selects macOS's Menlo font for title cards.
+
+### Host smoke test (Linux amd64)
+
+With the `build/python/dist` link above, `bwrap` with private user/network namespace support, Debian-style library paths, distro ffmpeg and the GTK/WebKit build dependencies:
+
+```sh
+mkdir -p build/probes/linux-tools
+curl -fsSL https://github.com/bluenviron/mediamtx/releases/download/v1.21.3/mediamtx_v1.21.3_linux_amd64.tar.gz -o build/probes/linux-tools/release.tar.gz
+echo '0a2ea7eba96023631efa1bea7804823a9145b043b6646a8a05798d4ac24ed635  build/probes/linux-tools/release.tar.gz' | sha256sum --check && \
+  tar xzf build/probes/linux-tools/release.tar.gz -C build/probes/linux-tools mediamtx
+python3 design/feasibility/probes/linux.py --selftest
+```
+
+Runs upstream `--selftest` on a private loopback network with a temporary home, no tunnel or router access. The first integrated run served keyed guest pages, HLS playlist, PDF and Datasette HTML, and reached the WHEP handler; its countdown never went live before the check expired. A second run **passed**, including publishing the countdown with ffmpeg, after enabling the test's previously discarded player log. The cause of the first miss is undiagnosed. This verifies neither reliable playback in a remote browser nor Linux confinement of individual guest-facing processes: the entire test lives in *one* outer namespace.
