@@ -10,7 +10,6 @@ with tempfile.TemporaryDirectory() as tmp:
     stub = Path(tmp) / 'hooks.go'
     stub.write_text('''package main
 func nativeActive() bool { return true }
-func nativeAbout(string) {}
 func nativeSend(string) {}
 func nativeBadge(string) {}
 func nativeKeepFrame() {}
