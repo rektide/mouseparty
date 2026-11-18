@@ -137,8 +137,8 @@ func TestSubtitlesAreDrawnTheSameInTheBox(t *testing.T) {
 // A host as the app starts one: the site in a process of its own, boxed, told what's up
 // and handed the file; killed, it comes back on the same link knowing what was up.
 func TestTheSiteInItsOwnProcess(t *testing.T) {
-	if findTool("mediamtx") == "" || !sandboxing() {
-		t.Skip("needs mediamtx and " + sandboxExec)
+	if findTool("mediamtx") == "" || !siteSandboxing() {
+		t.Skip("needs mediamtx and the platform viewer sandbox")
 	}
 	t.Setenv("HOME", t.TempDir())
 	var went []string
