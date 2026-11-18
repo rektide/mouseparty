@@ -166,8 +166,19 @@ func TestTheSiteInItsOwnProcess(t *testing.T) {
 	if code, body := get(""); code != 200 || !strings.Contains(body, "<html") {
 		t.Fatal("the page:", code, body)
 	}
-	if code, _ := get("status"); code != 200 { // which asks MediaMTX
-		t.Fatal("status:", code)
+	if code, body := get("status"); code != 200 || !strings.Contains(body, `"standby":true`) { // requires a successful API lookup
+		t.Fatal("standby status:", code, body)
+	}
+	if code, body := get("hls/index.m3u8"); code != 200 || !strings.Contains(body, "#EXTM3U") {
+		t.Fatal("HLS playlist:", code, body)
+	}
+	resp, err := http.Post(base+"whep", "application/sdp", strings.NewReader("not an offer"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if resp.StatusCode != 400 { // MediaMTX received the offer and rejected it
+		t.Fatal("WebRTC signaling:", resp.Status)
 	}
 	pdf := filepath.Join(t.TempDir(), "a paper.pdf")
 	os.WriteFile(pdf, []byte("%PDF-1.4\nonly this file\n%%EOF\n"), 0o600)
