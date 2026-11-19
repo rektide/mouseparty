@@ -100,8 +100,9 @@ times, and without a limit that stalls the search for minutes (the fuzzer report
 ## Linux sandbox and desktop smoke test
 
 The [Linux workflow](../.github/workflows/linux.yml) runs on pull requests,
-pushes to `main`, and by manual dispatch. It requires all seven selected Go
-tests to pass, not just an exit code of zero: a skip, missing test, or launch
+pushes to `main`, and by manual dispatch. Like the Mac job, it runs `go vet` and
+the `apps` package tests, including the saved `FuzzApps` inputs. It also requires
+all seven selected host tests to pass: a skip, missing test, or launch
 failure fails the job. The Linux viewer and offline ffmpeg tests exercise the
 real bubblewrap policies, including real media inspection, frame grabs and
 subtitle conversion. `TestTheSiteInItsOwnProcess` checks the boxed viewer

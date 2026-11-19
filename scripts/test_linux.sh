@@ -18,6 +18,9 @@ mediamtx --version
 # WebKitGTK 4.1 on current Linux distributions; the Wails module is pinned in go.mod.
 export CGO_ENABLED=1
 tags=desktop,production,webkit2_41
+go vet -tags "$tags" ./...
+go test -json -count=1 -tags "$tags" ./apps | NO_SKIPS=1 ALLOW_SKIPS='' go run ./scripts/testreport
+
 tests=(
     TestLinuxViewerIsolation
     TestLinuxViewerRequiresBubblewrap
