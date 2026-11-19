@@ -20,28 +20,20 @@ func siteSandboxing() bool { return !sandboxOff.Load() }
 const siteFileSocket = syscall.SOCK_SEQPACKET // connected records, never a host datagram sender
 
 func siteCommand(exe string, _ int, setup *SiteSetup) (*exec.Cmd, error) {
-	bin, err := exec.LookPath("bwrap")
-	if err != nil {
-		return nil, fmt.Errorf("Linux viewer sandbox needs bubblewrap: %w", err)
-	}
-	args := []string{"--unshare-all", "--unshare-user", "--disable-userns", "--cap-drop", "ALL", "--die-with-parent", "--new-session",
-		"--dev", "/dev", "--tmpfs", "/tmp", "--chdir", "/tmp", "--setenv", "TMPDIR", "/tmp",
-		"--ro-bind", exe, "/app/viewer"}
-	// The ELF loader and the distribution's shared libraries (also for a Wails build).
-	for _, lib := range []string{"/lib", "/lib64", "/usr/lib", "/usr/lib64", "/etc/ld.so.cache", "/etc/alternatives"} {
-		args = append(args, "--ro-bind-try", lib, lib)
-	}
+	mounts := []string{"--ro-bind", exe, "/app/viewer"}
 	if setup.Pandoc != "" {
-		args = append(args, "--ro-bind", setup.Pandoc, "/app/pandoc.wasm")
+		mounts = append(mounts, "--ro-bind", setup.Pandoc, "/app/pandoc.wasm")
 		setup.Pandoc = "/app/pandoc.wasm"
 	}
 	if setup.Python != "" {
-		args = append(args, "--ro-bind", setup.Python, "/app/python")
+		mounts = append(mounts, "--ro-bind", setup.Python, "/app/python")
 		setup.Python = "/app/python"
 	}
 	setup.Tmp = "/tmp"
-	cmd := exec.Command(bin, append(args, "--", "/app/viewer", siteArg)...)
-	cmd.Env = []string{} // no host tokens, display, preload or proxy settings
+	cmd, err := bubblewrapCommand(context.Background(), "viewer", mounts, "/app/viewer", siteArg)
+	if err != nil {
+		return nil, err
+	}
 	parent, child, err := socketPair(syscall.SOCK_SEQPACKET)
 	if err != nil {
 		return nil, err
