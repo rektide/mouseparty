@@ -452,10 +452,17 @@ func (h *Host) viewers() int {
 }
 
 // spawn runs a tool under the watchdog, in the session's folder (anything a tool
-// writes beside itself, like MediaMTX's certificates, goes with the session)
+// writes beside itself, like MediaMTX's certificates, goes with the session) and
+// in its box (toolWrap: sandbox-exec's on macOS, bubblewrap's on Linux)
 func (h *Host) spawn(name, bin string, args ...string) (*exec.Cmd, error) {
-	run, argv := h.boxFor(name, bin).argv(args...)
+	run, argv, env, err := h.toolWrap(name, bin, args)
+	if err != nil {
+		return nil, err
+	}
 	cmd := exec.Command("/bin/sh", append([]string{"-c", watchdog, "mouseparty-watch", run}, argv...)...)
+	if env != nil {
+		cmd.Env = env // boxed (Linux): the tool starts with none of the app's environment
+	}
 	cmd.Dir = h.tmp
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 	stdin, err := cmd.StdinPipe()

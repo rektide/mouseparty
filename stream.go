@@ -256,9 +256,10 @@ func extractCover(path string, index int) string {
 	f.Close()
 	ctx, cancel := contextTimeout(30 * time.Second)
 	defer cancel()
-	err = ffmpegCmd(ctx, []string{f.Name()}, "-v", "error", "-y", "-i", path, "-map",
-		fmt.Sprintf("0:v:%d", index), "-frames:v", "1", f.Name()).Run()
-	if st, e := os.Stat(f.Name()); err == nil && e == nil && st.Size() > 0 {
+	// read in the offline box (sandbox.go): the one file, and the picture out on a pipe
+	png, err := offlineFFmpeg(ctx, path, (*exec.Cmd).Output, []string{"-v", "error"},
+		"-map", fmt.Sprintf("0:v:%d", index), "-frames:v", "1", "-c:v", "png", "-f", "image2", "pipe:1")
+	if err == nil && len(png) > 0 && os.WriteFile(f.Name(), png, 0o600) == nil {
 		return f.Name()
 	}
 	os.Remove(f.Name())
@@ -450,15 +451,21 @@ func (p *Player) Start(args, temps []string, start float64, checkURL string) err
 		return fmt.Errorf("nothing is accepting the stream at %s: the app's MediaMTX has stopped", checkURL)
 	}
 	full := append([]string{"-loglevel", "info", "-nostats", "-progress", "pipe:1"}, args...)
-	cmd := ffmpegCmd(nil, temps, full...) // in its box (sandbox.go): the inputs, and these files of ours
+	cmd, err := ffmpegCmd(nil, temps, full...) // in its box (sandbox.go): the inputs, and these files of ours
+	if err != nil {
+		removeAll(temps)
+		return err
+	}
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 	stdout, _ := cmd.StdoutPipe()
 	stderr, _ := cmd.StderrPipe()
 	p.Log("$ ffmpeg " + strings.Join(full, " "))
 	if err := cmd.Start(); err != nil {
 		removeAll(temps)
+		closeExtra(cmd)
 		return err
 	}
+	closeExtra(cmd) // Linux: the pinned descriptors, consumed by bwrap as it started
 	done := make(chan struct{})
 	p.mu.Lock()
 	p.cmd, p.done = cmd, done
@@ -566,5 +573,13 @@ func serverUp(rawURL string) bool {
 func removeAll(paths []string) {
 	for _, p := range paths {
 		os.Remove(p)
+	}
+}
+
+// closeExtra: the descriptors a command was handed (a boxed ffmpeg's pinned
+// files), no longer the app's to hold once it has started
+func closeExtra(cmd *exec.Cmd) {
+	for _, f := range cmd.ExtraFiles {
+		f.Close()
 	}
 }

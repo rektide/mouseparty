@@ -19,6 +19,12 @@ package main
 // process of its own, handed what it serves (site.go), rather than part of the app,
 // which has to read whatever is dragged into it.
 //
+// On Linux the same boxes are bubblewrap's, not Seatbelt's: bubblewrap_linux.go
+// the shared boundary, site_linux.go the viewer, ffmpeg_linux.go both ffmpegs,
+// host_linux.go MediaMTX and cloudflared. There a tool that needs the network
+// (all of these but the offline ffmpeg) has the host's own, which bubblewrap
+// cannot narrow to ports as the profiles above do.
+//
 // Apple calls sandbox-exec deprecated and has for a decade; browsers and build
 // tools use the same boxes. The party file's "no_sandbox" (Edit as Text) turns
 // it all off, for a macOS where a profile here turns out to be wrong.
@@ -157,15 +163,16 @@ func realPath(path string) string {
 
 // ---------- ffmpeg ----------
 
-// ffmpegCmd: the publishing path (and its temporary cover art), unchanged on Linux.
-// In its macOS box it reads the files it's given as inputs
-// (-i) and nothing else of the Mac's, reads and writes own (temporary files the app
-// made for it: a card's words, a cover to fill), and reaches only the port it
-// publishes to (an rtsp:// on this Mac among args). A file it reads may be a
-// stranger's (a download), and it is the one big parser of them here that isn't
-// memory-safe: this is what it can do if one gets the better of it.
-func ffmpegCmd(ctx context.Context, own []string, args ...string) *exec.Cmd {
-	return ffmpegBox(firstTool("ffmpeg"), own, args).command(ctx, args...)
+// ffmpegCmd: the publishing path (and its temporary cover art). In its box
+// (macOS: sandbox.go below; Linux: ffmpeg_linux.go) it reads the files it's
+// given as inputs (-i) and nothing else of the machine's, reads the app's own
+// temporary files (a card's words, a cover; the macOS box also lets it write
+// them), and reaches only the port it publishes to (an rtsp:// on this machine
+// among args). A file it reads may be a stranger's (a download), and it is the
+// one big parser of them here that isn't memory-safe: this is what it can do if
+// one gets the better of it.
+func ffmpegCmd(ctx context.Context, own []string, args ...string) (*exec.Cmd, error) {
+	return publishFFmpegCommand(ctx, firstTool("ffmpeg"), own, args)
 }
 
 // offlineFFmpeg is for a one-shot operation on one app-selected local file.

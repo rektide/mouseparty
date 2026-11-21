@@ -102,10 +102,13 @@ times, and without a limit that stalls the search for minutes (the fuzzer report
 The [Linux workflow](../.github/workflows/linux.yml) runs on pull requests,
 pushes to `main`, and by manual dispatch. Like the Mac job, it runs `go vet` and
 the `apps` package tests, including the saved `FuzzApps` inputs. It also requires
-all seven selected host tests to pass: a skip, missing test, or launch
+all twelve selected host tests to pass: a skip, missing test, or launch
 failure fails the job. The Linux viewer and offline ffmpeg tests exercise the
 real bubblewrap policies, including real media inspection, frame grabs and
-subtitle conversion. `TestTheSiteInItsOwnProcess` checks the boxed viewer
+subtitle conversion; the tool-box tests do the same for MediaMTX and cloudflared
+and the publishing ffmpeg, whose inputs are handed over pinned by descriptor and
+whose boxes keep the host's network for the stream itself.
+`TestTheSiteInItsOwnProcess` checks the boxed viewer
 against real MediaMTX, including recovery after the viewer process is killed.
 
 To run the same check on Ubuntu 26.04 (amd64 or arm64), install the Go version

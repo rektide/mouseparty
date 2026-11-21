@@ -189,3 +189,38 @@ func TestLinuxOfflineFFmpegMedia(t *testing.T) {
 		}
 	}
 }
+
+// A sound file's cover art comes out of the offline box as a PNG.
+func TestLinuxExtractCover(t *testing.T) {
+	requireLinuxBubblewrap(t)
+	ffmpeg := findTool("ffmpeg")
+	if ffmpeg == "" {
+		t.Skip("needs ffmpeg")
+	}
+	dir := t.TempDir()
+	cover, song := filepath.Join(dir, "cover.png"), filepath.Join(dir, "song.mp3")
+	if out, err := exec.Command(ffmpeg, "-v", "error", "-f", "lavfi", "-i", "color=c=red:s=32x32:d=1",
+		"-frames:v", "1", cover).CombinedOutput(); err != nil {
+		t.Fatalf("make cover: %v\n%s", err, out)
+	}
+	if out, err := exec.Command(ffmpeg, "-v", "error", "-i", cover, "-f", "lavfi", "-i", "sine=f=440:d=1",
+		"-map", "0:v", "-map", "1:a", "-disposition:v", "attached_pic", "-c:a", "libmp3lame", song).CombinedOutput(); err != nil {
+		t.Fatalf("make song: %v\n%s", err, out)
+	}
+	got := extractCover(song, 0)
+	if got == "" {
+		t.Fatal("no cover extracted")
+	}
+	f, err := os.Open(got)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Close()
+	img, err := png.Decode(f)
+	if err != nil || img.Bounds().Dx() != 32 || img.Bounds().Dy() != 32 {
+		t.Fatalf("the cover, out of the box: %v, %+v", err, img)
+	}
+	if r, _, _, _ := img.At(16, 16).RGBA(); r < 60000 {
+		t.Fatal("not the red cover")
+	}
+}

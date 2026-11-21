@@ -28,6 +28,11 @@ tests=(
     TestLinuxOfflineFFmpegRequiresRegularFile
     TestLinuxOfflineFFmpegNoFallback
     TestLinuxOfflineFFmpegMedia
+    TestLinuxToolBoxes
+    TestLinuxToolsRequireBubblewrap
+    TestLinuxPublishFFmpegIsolation
+    TestLinuxPublishFFmpegNoFallback
+    TestLinuxExtractCover
     TestTheSiteInItsOwnProcess
 )
 pattern=$(IFS='|'; echo "${tests[*]}")
